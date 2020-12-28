@@ -33,10 +33,13 @@ namespace EthereumAddressGenerator
                 confOutDir += Path.DirectorySeparatorChar;
             }
             _prefixes = config.GetSection("Prefixes").GetChildren().Select(x => "0x" + x.Value);
+            bool dummy;
+            bool caseSensitive = bool.TryParse(config["CaseSensitive"], out dummy) && dummy;
 
             Console.WriteLine("Starting ETH address generator with configuration:");
-            Console.WriteLine("threads=" + confThreads);
-            Console.WriteLine("prefixes=" + string.Join(", ", _prefixes));
+            Console.WriteLine(" threads: " + confThreads);
+            Console.WriteLine(" prefixes: " + string.Join(", ", _prefixes));
+            Console.WriteLine(" case sensitive: " + (caseSensitive ? "yes" : "no"));
             Console.WriteLine(new string('=', 80));
 
             int threadCount = int.Parse(confThreads);
@@ -44,7 +47,7 @@ namespace EthereumAddressGenerator
             {
                 int threadId = i;
                 string outFile = $"{confOutDir}eth_keys_{threadId}.txt";
-                var thread = new Thread(() => GenerateAddress(threadId, outFile));
+                var thread = new Thread(() => GenerateAddress(threadId, caseSensitive, outFile));
                 thread.Start();
             }
 
@@ -53,7 +56,7 @@ namespace EthereumAddressGenerator
         }
 
 
-        private static void GenerateAddress(int threadId, string outputFilePath)
+        private static void GenerateAddress(int threadId, bool caseSensitive, string outputFilePath)
         {
             int counter = 0;
             using (StreamWriter fileWriter = File.AppendText(outputFilePath))
@@ -67,7 +70,7 @@ namespace EthereumAddressGenerator
 
                     foreach (string prefix in _prefixes)
                     {
-                        if (address.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        if (address.StartsWith(prefix, caseSensitive ? StringComparison.InvariantCulture : StringComparison.InvariantCultureIgnoreCase))
                         {
                             fileWriter.WriteLine($"{address} - {account.PrivateKey}");
                             Console.Beep();
