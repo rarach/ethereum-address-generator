@@ -61,11 +61,12 @@ namespace EthereumAddressGenerator
             int counter = 0;
             using (StreamWriter fileWriter = File.AppendText(outputFilePath))
             {
+                DateTime start = DateTime.Now;
+
                 while (!_terminate)
                 {
                     EthECKey ecKey = EthECKey.GenerateKey();
-                    byte[] privateKey = ecKey.GetPrivateKeyAsBytes();
-                    var account = new Account(privateKey);
+                    var account = new Account(ecKey);
                     string address = account.Address;
 
                     foreach (string prefix in _prefixes)
@@ -73,6 +74,7 @@ namespace EthereumAddressGenerator
                         if (address.StartsWith(prefix, caseSensitive ? StringComparison.InvariantCulture : StringComparison.InvariantCultureIgnoreCase))
                         {
                             fileWriter.WriteLine($"{address} - {account.PrivateKey}");
+                            fileWriter.Flush();
                             Console.Beep();
                             Console.ForegroundColor = ConsoleColor.Magenta;
                             Console.WriteLine($"MATCH: {address} {account.PrivateKey}");
@@ -82,10 +84,12 @@ namespace EthereumAddressGenerator
 
                     if (++counter == OUTPUT_INTERVAL)
                     {
+                        TimeSpan duration = DateTime.Now - start;
                         counter = 0;
-                        Console.WriteLine($"Another {OUTPUT_INTERVAL} keys checked on thread {threadId}");
+                        Console.WriteLine($"Another {OUTPUT_INTERVAL} keys checked on thread {threadId} in ~{(int)duration.TotalSeconds}sec");
                         Console.WriteLine($"Last: {address} ({account.PrivateKey})");
                         Console.WriteLine(new string('=', 80));
+                        start = DateTime.Now;
                     }
                 }
             }
