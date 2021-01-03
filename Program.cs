@@ -6,7 +6,6 @@ using System.Threading;
 using Microsoft.Extensions.Configuration;
 
 using Nethereum.Signer;
-using Nethereum.Web3.Accounts;
 
 
 namespace EthereumAddressGenerator
@@ -58,36 +57,42 @@ namespace EthereumAddressGenerator
 
         private static void GenerateAddress(int threadId, bool caseSensitive, string outputFilePath)
         {
-            int counter = 0;
+            int loopCounter = 0;
+            ulong outputCounter = 0;
+            double runTimeSeconds = 0.0;
+            StringComparison comparisonType = caseSensitive ? StringComparison.InvariantCulture : StringComparison.InvariantCultureIgnoreCase;
+            DateTime start = DateTime.Now;
+
             using (StreamWriter fileWriter = File.AppendText(outputFilePath))
             {
-                DateTime start = DateTime.Now;
-
                 while (!_terminate)
                 {
                     EthECKey ecKey = EthECKey.GenerateKey();
-                    var account = new Account(ecKey);
-                    string address = account.Address;
+                    string address = ecKey.GetPublicAddress();
 
                     foreach (string prefix in _prefixes)
                     {
-                        if (address.StartsWith(prefix, caseSensitive ? StringComparison.InvariantCulture : StringComparison.InvariantCultureIgnoreCase))
+                        if (address.StartsWith(prefix, comparisonType))
                         {
-                            fileWriter.WriteLine($"{address} - {account.PrivateKey}");
+                            string privateKey = ecKey.GetPrivateKey();
+                            fileWriter.WriteLine($"{address} - {privateKey}");
                             fileWriter.Flush();
                             Console.Beep();
                             Console.ForegroundColor = ConsoleColor.Magenta;
-                            Console.WriteLine($"MATCH: {address} {account.PrivateKey}");
+                            Console.WriteLine($"MATCH: {address} {privateKey}");
                             Console.ResetColor();
                         }
                     }
 
-                    if (++counter == OUTPUT_INTERVAL)
+                    if (++loopCounter == OUTPUT_INTERVAL)
                     {
+                        loopCounter = 0;
+                        outputCounter++;
                         TimeSpan duration = DateTime.Now - start;
-                        counter = 0;
-                        Console.WriteLine($"Another {OUTPUT_INTERVAL} keys checked on thread {threadId} in ~{(int)duration.TotalSeconds}sec");
-                        Console.WriteLine($"Last: {address} ({account.PrivateKey})");
+                        runTimeSeconds += duration.TotalSeconds;
+                        double avgSeconds = runTimeSeconds / outputCounter;
+                        Console.WriteLine($"{OUTPUT_INTERVAL} more keys checked on thread {threadId} in ~{(int)duration.TotalSeconds}sec (avg. {avgSeconds:0.00}sec)");
+                        Console.WriteLine($"Last: {address} ({ecKey.GetPrivateKey()})");
                         Console.WriteLine(new string('=', 80));
                         start = DateTime.Now;
                     }
