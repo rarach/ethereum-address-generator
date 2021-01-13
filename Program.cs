@@ -31,7 +31,7 @@ namespace EthereumAddressGenerator
             {
                 confOutDir += Path.DirectorySeparatorChar;
             }
-            _prefixes = config.GetSection("Prefixes").GetChildren().Select(x => "0x" + x.Value);
+            _prefixes = config.GetSection("Prefixes").GetChildren().Select(section => SanitizePrefix(section.Value));
             bool dummy;
             bool caseSensitive = bool.TryParse(config["CaseSensitive"], out dummy) && dummy;
 
@@ -54,6 +54,21 @@ namespace EthereumAddressGenerator
             _terminate = true;
         }
 
+
+        private static string SanitizePrefix(string prefix)
+        {
+            var invalid = new System.Text.RegularExpressions.Regex("[^a-fA-F0-9]");
+            if (invalid.IsMatch(prefix))
+            {
+                throw new Exception($"Invalid prefix: {prefix}{Environment.NewLine}Must use only chars a-z, A-Z, 0-9.");
+            }
+
+            if (!prefix.StartsWith("0x"))
+            {
+                prefix = "0x" + prefix;
+            }
+            return prefix;
+        }
 
         private static void GenerateAddress(int threadId, bool caseSensitive, string outputFilePath)
         {
