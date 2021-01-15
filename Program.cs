@@ -15,6 +15,7 @@ namespace EthereumAddressGenerator
         private static IEnumerable<string> _prefixes;
         private const int OUTPUT_INTERVAL = 5000;
         private static bool _terminate = false;
+        private static int _maxPrefixLength = 0;
 
 
         static void Main(string[] args)
@@ -32,6 +33,13 @@ namespace EthereumAddressGenerator
                 confOutDir += Path.DirectorySeparatorChar;
             }
             _prefixes = config.GetSection("Prefixes").GetChildren().Select(section => SanitizePrefix(section.Value));
+            foreach (string prefix in _prefixes)
+            {
+                if (prefix.Length > _maxPrefixLength)
+                {
+                    _maxPrefixLength = prefix.Length;
+                }
+            }
             bool dummy;
             bool caseSensitive = bool.TryParse(config["CaseSensitive"], out dummy) && dummy;
 
@@ -60,7 +68,7 @@ namespace EthereumAddressGenerator
             var invalid = new System.Text.RegularExpressions.Regex("[^a-fA-F0-9]");
             if (invalid.IsMatch(prefix))
             {
-                throw new Exception($"Invalid prefix: {prefix}{Environment.NewLine}Must use only chars a-z, A-Z, 0-9.");
+                throw new Exception($"Invalid prefix: {prefix}{Environment.NewLine}Must use only chars a-f, A-F, 0-9.");
             }
 
             if (!prefix.StartsWith("0x"))
@@ -72,6 +80,7 @@ namespace EthereumAddressGenerator
 
         private static void GenerateAddress(int threadId, bool caseSensitive, string outputFilePath)
         {
+            var keyGenerator = new KeyGenerator(400);
             int loopCounter = 0;
             ulong outputCounter = 0;
             double runTimeSeconds = 0.0;
@@ -82,20 +91,30 @@ namespace EthereumAddressGenerator
             {
                 while (!_terminate)
                 {
-                    EthECKey ecKey = EthECKey.GenerateKey();
-                    string address = ecKey.GetPublicAddress();
+                    EthECKey ecKey = keyGenerator.GenerateKey();
+                    string beginning = keyGenerator.GetStartLowerCase(ecKey, _maxPrefixLength);
 
                     foreach (string prefix in _prefixes)
                     {
-                        if (address.StartsWith(prefix, comparisonType))
+                        if (beginning.StartsWith(prefix, StringComparison.InvariantCultureIgnoreCase))
                         {
-                            string privateKey = ecKey.GetPrivateKey();
-                            fileWriter.WriteLine($"{address} - {privateKey}");
-                            fileWriter.Flush();
-                            Console.Beep();
-                            Console.ForegroundColor = ConsoleColor.Magenta;
-                            Console.WriteLine($"MATCH: {address} {privateKey}");
-                            Console.ResetColor();
+                            string address = ecKey.GetPublicAddress();
+                            if (address.StartsWith(prefix, comparisonType))
+                            {
+                                string privateKey = ecKey.GetPrivateKey();
+                                fileWriter.WriteLine($"{address} - {privateKey}");
+                                fileWriter.Flush();
+                                Console.Beep();
+                                Console.ForegroundColor = ConsoleColor.Magenta;
+                                Console.WriteLine($"MATCH: {address} {privateKey}");
+                                Console.ResetColor();
+                                Console.Title = "MATCH!";
+                            }
+                            else
+                            {
+                                Console.WriteLine($"Case insensitive match: {address} ({ecKey.GetPrivateKey()})");
+                                Console.Title = "ci_match";
+                            }
                         }
                     }
 
@@ -107,7 +126,7 @@ namespace EthereumAddressGenerator
                         runTimeSeconds += duration.TotalSeconds;
                         double avgSeconds = runTimeSeconds / outputCounter;
                         Console.WriteLine($"{OUTPUT_INTERVAL} more keys checked on thread {threadId} in ~{(int)duration.TotalSeconds}sec (avg. {avgSeconds:0.00}sec)");
-                        Console.WriteLine($"Last: {address} ({ecKey.GetPrivateKey()})");
+                        Console.WriteLine($"Last: {ecKey.GetPublicAddress()} ({ecKey.GetPrivateKey()})");
                         Console.WriteLine(new string('=', 80));
                         start = DateTime.Now;
                     }
