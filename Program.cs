@@ -110,11 +110,6 @@ namespace EthereumAddressGenerator
                                 Console.ResetColor();
                                 Console.Title = "MATCH!";
                             }
-                            else
-                            {
-                                Console.WriteLine($"Case insensitive match: {address} ({ecKey.GetPrivateKey()})");
-                                Console.Title = "ci_match";
-                            }
                         }
                     }
 
